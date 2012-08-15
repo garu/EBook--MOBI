@@ -925,15 +925,15 @@ sub _load_resources
 	}
 }
 
-=head2 Write
+=head2 Data
 
-  $pdb->Write("filename");
+  my $bindata = $pdb->Data();
 
 Invokes methods in helper classes to get the application-specific
 parts of the database, then writes the database to the file
 I<filename>.
 
-Write() uses the following helper methods:
+Data() uses the following helper methods:
 
 =over
 
@@ -959,15 +959,11 @@ See also L</HELPER CLASSES>.
 =cut
 #'	<-- For Emacs
 
-sub Write
+sub Data
 {
 	my $self = shift;
-	my $fname = shift;		# Output file name
 	my @record_data;
-
-	# Open file
-	open my $OFILE, '>', $fname or die "Can't write to \"$fname\": $!\n";
-	binmode $OFILE;			# Write as binary file under MS-DOS
+	my $full_data;
 
 	# Get AppInfo block
 	my $appinfo_block = $self->PackAppInfoBlock;
@@ -1122,13 +1118,13 @@ sub Write
 		$self->{uniqueIDseed};
 		;
 
-	print $OFILE "$header";
+	$full_data = $header;
 
 	# Write index header
 	my $index_header;
 
 	$index_header = pack "N n", 0, ($#record_data+1);
-	print $OFILE "$index_header";
+	$full_data .= $index_header;
 
 	# Write index
 	my $rec_offset;		# Offset of next record/resource
@@ -1162,7 +1158,7 @@ sub Write
 				$type,
 				$id,
 				$rec_offset;
-			print $OFILE "$index_data";
+			$full_data .= $index_data;
 
 			$rec_offset += length($data);
 		}
@@ -1192,7 +1188,7 @@ sub Write
 				($id >> 16) & 0xff,
 				($id >> 8) & 0xff,
 				$id & 0xff;
-			print $OFILE "$index_data";
+			$full_data .= $index_data;
 
 			$rec_offset += length($data);
 		}
@@ -1201,16 +1197,16 @@ sub Write
 	# Write the two NULs
 	if (length($self->{"2NULs"}) == 2)
 	{
-		print $OFILE $self->{"2NULs"};
+		$full_data .= $self->{"2NULs"};
 	} else {
-		print $OFILE "\0\0";
+		$full_data .= "\0\0";
 	}
 
 	# Write AppInfo block
-	print $OFILE $appinfo_block unless $appinfo_offset == 0;
+	$full_data .= $appinfo_block unless $appinfo_offset == 0;
 
 	# Write sort block
-	print $OFILE $sort_block unless $sort_offset == 0;
+	$full_data .= $sort_block unless $sort_offset == 0;
 
 	# Write record/resource list
 	my $record;
@@ -1231,10 +1227,34 @@ sub Write
 
 			($attributes, $id, $data) = @{$record};
 		}
-		print $OFILE $data;
+		$full_data .= $data;
 	}
 
-	close $OFILE;
+	return $full_data;
+}
+
+=head2 Write
+
+  $pdb->Write("filename");
+
+Convenience wrapper around L</Data>, writing the database to the
+file I<filename>.
+
+=cut
+
+sub Write {
+  my $self = shift;
+	my $fname = shift;		# Output file name
+
+  my $data = $self->Data;
+
+	# Open file
+	open my $OFILE, '>', $fname or die "Can't write to \"$fname\": $!\n";
+	binmode $OFILE;			# Write as binary file under MS-DOS
+
+  print $OFILE $data;
+
+  close $OFILE;
 }
 
 =head2 new_Record
